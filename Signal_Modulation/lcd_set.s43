@@ -1,0 +1,84 @@
+
+
+
+#include  <msp430xG46x.h>
+
+
+//================================
+                MODULE  LCD_set
+                PUBLIC  Lcd_setup
+
+
+Delay        MACRO delaylen                  ; dellay MACRO (relevant to the LCD settings and command)
+             LOCAL L2
+             mov.w delaylen, R4
+L2           dec.w R4
+             jnz L2
+             ENDM                  
+                  
+
+
+Lcd_cmd      MACRO command
+             call #delay5ms
+             mov.b  command,&P5OUT
+             call  #Lcd_strobe
+             ENDM
+
+Lcd_data     MACRO charecter
+             call #delay5ms
+             mov.b  #0x00,&P5OUT
+             bis.b  #0x40,&P3OUT
+             mov.b charecter,&P5OUT      
+             call #Lcd_strobe
+             bic.b #0x40,&P3OUT     
+             ENDM
+
+//===========================
+            RSEG CODE
+//===========================
+
+
+Lcd_setup    bic.b #0xe0,&P3OUT             ; RS,E,R/W == 0
+             call #delay15ms                 ; delay of 15msec
+             mov.b #0x3f, &P5OUT
+             call #Lcd_strobe
+             call #delay5ms                   ; delay of 5msec
+             mov.b #0x3f, &P5OUT
+             call #Lcd_strobe
+             call #delay200us                 ; delay of 0.2msec
+             mov.b #0x3f, &P5OUT
+             call #Lcd_strobe             
+
+             Lcd_cmd #0x3c
+             Lcd_cmd #0x0f
+             Lcd_cmd #0x01
+             Lcd_cmd #0x06
+             Lcd_cmd #0x80
+             Lcd_cmd #0x02             
+             Lcd_cmd #0x0c                  ; hide the writing head
+             ret
+             
+Lcd_strobe   bis.b #0x20,&P3OUT             ; enable and then disable the voltage change           
+             NOP
+             NOP
+             bic.b #0x20,&P3OUT
+             ret
+delay5ms     mov     #1750,R15
+L1          dec     R15
+            jnz     L1
+            ret
+            
+delay15ms    mov     #5250,R15
+L2          dec     R15
+            jnz     L2
+            ret 
+            
+delay200us   mov     #280,R15
+L3          dec     R15
+            jnz     L3
+            ret 
+
+               ENDMOD
+//===========================7
+
+                END

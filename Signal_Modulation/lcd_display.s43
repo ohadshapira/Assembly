@@ -1,0 +1,601 @@
+#include  <msp430xG46x.h>
+
+
+//================================
+                MODULE  LCD_display
+                PUBLIC  start_menu,curr_disp,show_signal
+`               EXTERN  PORT2_ISR
+
+Delay        MACRO delaylen                  ; dellay MACRO (relevant to the LCD settings and command)
+             LOCAL L2
+             mov.w delaylen, R4
+L2           dec.w R4
+             jnz L2
+             ENDM                  
+                  
+
+
+Lcd_cmd      MACRO command
+             Delay #2000
+             mov.b  command,&P5OUT
+             call  #Lcd_strobe
+             ENDM
+
+Lcd_data     MACRO charecter
+             Delay #2000
+             mov.b  #0x00,&P5OUT
+             bis.b  #0x40,&P3OUT
+             mov.b charecter,&P5OUT      
+             call #Lcd_strobe
+             bic.b #0x40,&P3OUT     
+             ENDM
+
+//===========================
+            RSEG CODE
+//===========================
+curr_disp    cmp  #0,R11          ;if R11=0 we on the main menu
+             jz    branch0
+             tst   R10          ;if R11/=0 and R10=0 we on the instruction option
+             jz    branch1
+             cmp  #1,R10          ;if R11/=0 and R10=1 we on the modulation frequancy option
+             jz   branch2             
+             cmp  #2,R10          ;if R11/=0 and R10=2 we on the sync frequancy option
+             jz   branch3
+             cmp  #3,R10          ;if R11/=0 and R10=3 we on the action option
+             jz   branch4
+             cmp  #4,R10          ;if R11/=0 and R10=4 we on the quit option
+             jz   branch5   
+
+branch0      br    #start_menu    
+branch1      br    #disp_inst            
+branch2      br    #disp_modfreq             
+branch3      br    #disp_synfreq             
+branch4      br    #disp_action             
+branch5      br    #disp_quit             
+             
+disp_inst     call #start_inst
+              ret
+disp_modfreq  call #start_mod
+              ret
+disp_synfreq  call #start_sync
+              ret
+disp_action   call #start_act
+              ret
+disp_quit     call #quit_display
+              ret
+              
+;----------------------------------------------------------------------------------------------
+;             instruction option display
+;----------------------------------------------------------------------------------------------
+//R11 is instruction window page number
+//check R11 exceed possible values
+start_inst   cmp    #3,R11          
+             jnz     page_inst1
+             mov    #1,R11
+page_inst1   cmp    #0xff,R11
+             jnz    page_inst2
+             mov    #2,R11
+             
+//check which page to show             
+page_inst2   tst.b  R11                 ;R10 is the menu option
+             jz     instA
+             cmp  #1,R11
+             jz     instB
+                          
+instA      br    #inst_display1   
+instB      br    #inst_display2         
+
+
+inst_display2 Lcd_cmd #0x01                  ; clear the LCD
+             Lcd_cmd #0x02                  ; beginning of the LCD
+             Lcd_data #'M'
+             Lcd_data #'o'
+             Lcd_data #'d'
+             Lcd_data #'u'
+             Lcd_data #'l'
+             Lcd_data #'a'
+             Lcd_data #'t'
+             Lcd_data #'i'
+             Lcd_data #'o'
+             Lcd_data #'n'
+             Lcd_data #' '
+             Lcd_data #'o'
+             Lcd_data #'f'
+             Lcd_cmd #0xc0                   ; the second line
+             Lcd_data #'d'
+             Lcd_data #'i'
+             Lcd_data #'g'
+             Lcd_data #'i'
+             Lcd_data #'t'
+             Lcd_data #'a'
+             Lcd_data #'l'
+             Lcd_data #' '
+             Lcd_data #'s'
+             Lcd_data #'i'
+             Lcd_data #'g'     
+             Lcd_data #'n'
+             Lcd_data #'a'
+             Lcd_data #'l'
+             Lcd_data #'!'               
+             ret 
+             
+inst_display1 Lcd_cmd #0x01                  ; clear the LCD
+             Lcd_cmd #0x02                  ; beginning of the LCD
+             Lcd_data #'p'
+             Lcd_data #'l'
+             Lcd_data #'e'
+             Lcd_data #'a'
+             Lcd_data #'s'
+             Lcd_data #'e'
+             Lcd_data #' '
+             Lcd_data #'c'
+             Lcd_data #'o'
+             Lcd_data #'n'
+             Lcd_data #'n'
+             Lcd_data #'e'
+             Lcd_data #'c'
+             Lcd_data #'t'             
+             Lcd_cmd #0xc0                  ; the second line
+             Lcd_data #'s'
+             Lcd_data #'c'
+             Lcd_data #'o'
+             Lcd_data #'p'
+             Lcd_data #'e'
+             Lcd_data #' '
+             Lcd_data #'t'
+             Lcd_data #'o'
+             Lcd_data #' '       
+             Lcd_data #'P'
+             Lcd_data #'2'
+             Lcd_data #'.'
+             Lcd_data #'2'
+             ret  
+
+;----------------------------------------------------------------------------------------------
+;             modulation frequancy option display
+;----------------------------------------------------------------------------------------------
+//R11 is modulation frequancy window page number
+//check R11 exceed possible values
+start_mod    cmp    #4,R11
+             jnz     page_mod1
+             mov    #1,R11
+page_mod1   cmp    #0xff,R11
+             jnz    page_mod2
+             mov    #3,R11
+             
+//check which page to show                          
+page_mod2    cmp  #1,R11                 ;R10 is the menu option
+             jz     modA
+             cmp  #2,R11
+             jz     modB
+             cmp  #3,R11
+             jz     modC                      
+                          
+modA      br    #mod_display1   
+modB      br    #mod_display2         
+modC      br    #mod_display3         
+
+mod_display1   Lcd_cmd #0x01                  ; clear the LCD
+             Lcd_cmd #0x02                  ; beginning of the LCD
+             Lcd_data #'f'
+             Lcd_data #'1'
+             Lcd_data #' '
+             Lcd_data #'f'
+             Lcd_data #'r'
+             Lcd_data #'e'
+             Lcd_data #'q'
+             Lcd_data #'u'
+             Lcd_data #'a'
+             Lcd_data #'n'
+             Lcd_data #'c'
+             Lcd_data #'y'
+             Lcd_data #':'
+             Lcd_cmd #0xc0                   ; the second line
+             Lcd_data #'*'
+             Lcd_data #'1'
+             Lcd_data #':'
+             Lcd_data #'2'
+             Lcd_data #'K'
+             Lcd_data #'H'
+             Lcd_data #'z'
+             ret 
+
+mod_display2   Lcd_cmd #0x01                  ; clear the LCD
+             Lcd_cmd #0x02                  ; beginning of the LCD
+             Lcd_data #'*'
+             Lcd_data #'2'
+             Lcd_data #':'
+             Lcd_data #'4'
+             Lcd_data #'K'
+             Lcd_data #'H'
+             Lcd_data #'z'
+             Lcd_cmd #0xc0                   ; the second line
+             Lcd_data #' '
+             Lcd_data #'3'
+             Lcd_data #':'
+             Lcd_data #'6'
+             Lcd_data #'K'
+             Lcd_data #'H'
+             Lcd_data #'z'
+             ret 
+             
+mod_display3   Lcd_cmd #0x01                  ; clear the LCD
+             Lcd_cmd #0x02                  ; beginning of the LCD
+             Lcd_data #' '
+             Lcd_data #'2'
+             Lcd_data #':'
+             Lcd_data #'4'
+             Lcd_data #'K'
+             Lcd_data #'H'
+             Lcd_data #'z'
+             Lcd_cmd #0xc0                   ; the second line
+             Lcd_data #'*'
+             Lcd_data #'3'
+             Lcd_data #':'
+             Lcd_data #'6'
+             Lcd_data #'K'
+             Lcd_data #'H'
+             Lcd_data #'z'
+             ret  
+
+;----------------------------------------------------------------------------------------------
+;             sync frequancy option display
+;----------------------------------------------------------------------------------------------
+
+//R11 is sync frequancy window page number
+//check R11 exceed possible values
+start_sync    cmp    #3,R11
+             jnz     page_sync1
+             mov    #1,R11
+page_sync1   cmp    #0xff,R11
+             jnz    page_sync2
+             mov    #2,R11
+             
+//check which page to show                                       
+page_sync2    cmp  #1,R11                 ;R10 is the menu option
+             jz     syncA
+             cmp  #2,R11
+             jz     syncB
+      
+                          
+syncA      br    #sync_display1   
+syncB      br    #sync_display2    
+
+sync_display1   Lcd_cmd #0x01                  ; clear the LCD
+             Lcd_cmd #0x02                  ; beginning of the LCD
+             Lcd_data #'f'
+             Lcd_data #'0'
+             Lcd_data #' '
+             Lcd_data #'f'
+             Lcd_data #'r'
+             Lcd_data #'e'
+             Lcd_data #'q'
+             Lcd_data #'u'
+             Lcd_data #'a'
+             Lcd_data #'n'
+             Lcd_data #'c'
+             Lcd_data #'y'
+             Lcd_data #':'
+             Lcd_cmd #0xc0                   ; the second line
+             Lcd_data #'*'
+             Lcd_data #'1'
+             Lcd_data #':'
+             Lcd_data #'1'
+             Lcd_data #'K'
+             Lcd_data #'H'
+             Lcd_data #'z'
+             ret 
+
+sync_display2   Lcd_cmd #0x01                  ; clear the LCD
+             Lcd_cmd #0x02                  ; beginning of the LCD
+             Lcd_data #'*'
+             Lcd_data #'2'
+             Lcd_data #':'
+             Lcd_data #'2'
+             Lcd_data #'K'
+             Lcd_data #'H'
+             Lcd_data #'z'
+             Lcd_cmd #0xc0                   ; the second line
+             Lcd_data #' '
+             ret              
+
+;----------------------------------------------------------------------------------------------
+;             action frequancy option display
+;----------------------------------------------------------------------------------------------
+
+//R11 is action window
+//check R11 exceed possible values
+start_act    cmp    #3,R11
+             jnz     page_act1
+             mov    #1,R11
+page_act1   cmp    #0xff,R11
+             jnz    page_act2
+             mov    #2,R11
+page_act2    cmp  #1,R11                 ;R10 is the menu option
+             jz     actA
+             cmp  #2,R11
+             jz     actA         
+                          
+actA      br    #act_display1   
+actB      br    #act_display1    
+
+act_display1   Lcd_cmd #0x01                  ; clear the LCD
+             Lcd_cmd #0x02                  ; beginning of the LCD
+             Lcd_data #'S'
+             Lcd_data #'e'
+             Lcd_data #'l'
+             Lcd_data #'e'
+             Lcd_data #'c'
+             Lcd_data #'t'
+             Lcd_data #' '
+             Lcd_data #'s'
+             Lcd_data #'i'
+             Lcd_data #'g'
+             Lcd_data #'n'
+             Lcd_data #'a'
+             Lcd_data #'l'             
+             Lcd_cmd #0xc0                   ; the second line
+             Lcd_data #'f'
+             Lcd_data #'r'
+             Lcd_data #'o'
+             Lcd_data #'m'
+             Lcd_data #' '
+             Lcd_data #'k'
+             Lcd_data #'e'
+             Lcd_data #'y'
+             Lcd_data #'p'
+             Lcd_data #'a'
+             Lcd_data #'d'
+             ret                 
+
+
+;----------------------------------------------------------------------------------------------
+;             quit frequancy option display
+;----------------------------------------------------------------------------------------------
+
+
+quit_display   Lcd_cmd #0x01                  ; clear the LCD
+             Lcd_cmd #0x02                  ; beginning of the LCD
+             Lcd_data #'S'
+             Lcd_data #'L'
+             Lcd_data #'E'
+             Lcd_data #'E'
+             Lcd_data #'P'
+             Lcd_data #'I'
+             Lcd_data #'N'
+             Lcd_data #'G'
+             Lcd_data #'.'    
+             Lcd_data #' '               
+             Lcd_data #'p'
+             Lcd_data #'r'
+             Lcd_data #'e'
+             Lcd_data #'s'
+             Lcd_data #'s'
+             Lcd_cmd #0xc0                   ; the second line
+             Lcd_data #'P'
+             Lcd_data #'B'
+             Lcd_data #'0'
+             Lcd_data #' '
+             Lcd_data #'f'
+             Lcd_data #'o'
+             Lcd_data #'r'
+             Lcd_data #' '
+             Lcd_data #'m'
+             Lcd_data #'e'
+             Lcd_data #'n'
+             Lcd_data #'u'
+             ret 
+             
+;----------------------------------------------------------------------------------------------
+;             quit frequancy option display
+;----------------------------------------------------------------------------------------------
+//R10 is main menu page number
+//check R10 exceed possible values
+
+start_menu   cmp    #5,R10
+             jnz     page_menu1
+             clr    R10
+page_menu1   cmp    #0xff,R10
+             jnz    page_menu2
+             mov    #3,R10
+             
+//check which page to show                                                    
+page_menu2   tst.b  R10                 ;R10 is the menu option
+             jz     branchA
+             cmp  #1,R10
+             jz     branchB
+             cmp  #2,R10
+             jz     branchC
+             cmp  #3,R10
+             jz     branchD
+             cmp  #4,R10
+             jz     branchE             
+                          
+branchA      br    #menu_A   
+branchB      br    #menu_B           
+branchC      br    #menu_C            
+branchD      br    #menu_D        
+branchE      br    #menu_E           
+
+
+menu_A       Lcd_cmd  #1
+             Lcd_cmd  #2
+             Lcd_data #'M'
+             Lcd_data #'a'
+             Lcd_data #'i'
+             Lcd_data #'n'
+             Lcd_data #' '
+             Lcd_data #'m'
+             Lcd_data #'e'
+             Lcd_data #'n'
+             Lcd_data #'u'
+             Lcd_cmd #0xc0                  ; the second line
+             Lcd_data #'*'
+             Lcd_data #'1'
+             Lcd_data #':'
+             Lcd_data #'I'
+             Lcd_data #'n'
+             Lcd_data #'s'
+             Lcd_data #'t'
+             Lcd_data #'r'
+             Lcd_data #'u'
+             Lcd_data #'c'
+             Lcd_data #'t'
+             Lcd_data #'i'
+             Lcd_data #'o'
+             Lcd_data #'n'
+             ret
+
+menu_B       Lcd_cmd  #1
+             Lcd_cmd  #2
+             Lcd_data #'*'
+             Lcd_data #'2'
+             Lcd_data #':'
+             Lcd_data #'M'
+             Lcd_data #'o'
+             Lcd_data #'d'
+             Lcd_data #'.'
+             Lcd_data #' '
+             Lcd_data #'F'
+             Lcd_data #'r'
+             Lcd_data #'e'
+             Lcd_data #'q'
+             Lcd_data #'.'
+             Lcd_cmd #0xc0                  ; the second line
+             Lcd_data #' ' 
+             Lcd_data #'3' 
+             Lcd_data #':' 
+             Lcd_data #'S' 
+             Lcd_data #'y' 
+             Lcd_data #'n' 
+             Lcd_data #'c' 
+             Lcd_data #'.'              
+             Lcd_data #' ' 
+             Lcd_data #'F' 
+             Lcd_data #'r' 
+             Lcd_data #'e' 
+             Lcd_data #'q'
+             Lcd_data #'.'
+             ret            
+
+menu_C       Lcd_cmd  #1
+             Lcd_cmd  #2
+             Lcd_data #' '
+             Lcd_data #'2'
+             Lcd_data #':'
+             Lcd_data #'M'
+             Lcd_data #'o'
+             Lcd_data #'d'
+             Lcd_data #'.'
+             Lcd_data #' '
+             Lcd_data #'F'
+             Lcd_data #'r'
+             Lcd_data #'e'
+             Lcd_data #'q'
+             Lcd_data #'.'
+             Lcd_cmd #0xc0                  ; the second line
+             Lcd_data #'*' 
+             Lcd_data #'3' 
+             Lcd_data #':' 
+             Lcd_data #'S' 
+             Lcd_data #'y' 
+             Lcd_data #'n' 
+             Lcd_data #'c' 
+             Lcd_data #'.'              
+             Lcd_data #' ' 
+             Lcd_data #'F' 
+             Lcd_data #'r' 
+             Lcd_data #'e' 
+             Lcd_data #'q'
+             Lcd_data #'.'
+             ret                        
+
+menu_D       Lcd_cmd  #1
+             Lcd_cmd  #2
+             Lcd_data #'*'
+             Lcd_data #'4'
+             Lcd_data #':'
+             Lcd_data #'A'
+             Lcd_data #'c'
+             Lcd_data #'t'
+             Lcd_data #'i'
+             Lcd_data #'o'
+             Lcd_data #'n'
+             Lcd_data #' '
+             Lcd_data #' '
+             Lcd_data #' '
+             Lcd_data #' '
+             Lcd_data #' '
+             Lcd_cmd #0xc0                  ; the second line
+             Lcd_data #' ' 
+             Lcd_data #'5' 
+             Lcd_data #':' 
+             Lcd_data #'Q' 
+             Lcd_data #'u' 
+             Lcd_data #'i' 
+             Lcd_data #'t' 
+             ret                        
+
+menu_E       Lcd_cmd  #1
+             Lcd_cmd  #2
+             Lcd_data #' '
+             Lcd_data #'4'
+             Lcd_data #':'
+             Lcd_data #'A'
+             Lcd_data #'c'
+             Lcd_data #'t'
+             Lcd_data #'i'
+             Lcd_data #'o'
+             Lcd_data #'n'
+             Lcd_data #' '
+             Lcd_data #' '
+             Lcd_data #' '
+             Lcd_data #' '
+             Lcd_data #' '
+             Lcd_cmd #0xc0                  ; the second line
+             Lcd_data #'*' 
+             Lcd_data #'5' 
+             Lcd_data #':' 
+             Lcd_data #'Q' 
+             Lcd_data #'u' 
+             Lcd_data #'i' 
+             Lcd_data #'t' 
+             ret    
+
+;----------------------------------------------------------------------------------------------
+;             KP display
+;----------------------------------------------------------------------------------------------
+
+show_signal  Lcd_cmd  #1
+             Lcd_cmd  #2
+             Lcd_data #'Y'
+             Lcd_data #'o'
+             Lcd_data #'u'
+             Lcd_data #' '
+             Lcd_data #'p'
+             Lcd_data #'r'
+             Lcd_data #'e'
+             Lcd_data #'s'
+             Lcd_data #'s'
+             Lcd_data #'e'
+             Lcd_data #'d'
+             Lcd_cmd #0xc0                  ; the second line
+             Lcd_data #' ' 
+             Lcd_data #' ' 
+             Lcd_data #' ' 
+             Lcd_data R15
+             Delay #60000
+             Delay #60000
+             ret    
+
+
+
+Lcd_strobe   bis.b #0x20,&P3OUT             ; enable and then disable the voltage change           
+             NOP
+             NOP
+             bic.b #0x20,&P3OUT
+             ret
+               ENDMOD
+//===========================7
+
+                END

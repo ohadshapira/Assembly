@@ -1,0 +1,182 @@
+
+
+//"functions_project.s43" contain the managing functions and PORT1 ISR.
+//We get to PORT1 ISR when pressing the PB0-PB3. 
+//When pressing PB0 we are using 'manage' function. this function checks R10 value, R11 value and 'quit_flag' value, 
+//and by them choose wether to put new value at f0/f1 or not. manage function also check if the user chose "action" option
+//and active timers or "quit" option and active sleeping mode. when we use PB0 at "quit" mode we go back to the main menu.
+//when pressing PB1 we call 'curr_disp' function to check what to show on the LCD.
+//When pressing PB2 at main menu we increase R10 by 1 and when pressing PB3 at main menu we decrease R10 by 1.
+//When pressing PB2 at sub-menu we increase R11 by 1 and when pressing PB3 at sub-menu we decrease R11 by 1.
+
+
+#include  <msp430xG46x.h>
+
+//================================
+                MODULE  functions_project
+                PUBLIC  PORT1_ISR,manage
+                EXTERN  curr_disp,PORT2_ISR,SetupTA,SetupC1,Frequ
+                
+
+Debounce     MACRO  cycles
+             LOCAL  L_D
+             mov.w  cycles,R4     
+L_D          dec.w  R4                    
+             jnz    L_D
+             ENDM   
+             
+           ORG 1100h
+            
+quit_flag   DW 0                             ; if 'quit_flag=1' we entered "quit" option, else 'quit_flag=0'
+
+
+                RSEG    CODE    
+
+manage       tst  R11                  ;if R11=0 we came from the main menu then dont change f0 or f1 values and then check if user chose action or quit
+             jz   enter_sub         
+             tst  R10                  ;if R11/=0 and R10=0 we on the instruction window and nothing happens
+             jz   exit_manage
+             cmp  #1,R10               ;if R11/=0 and R10=1 we on modulation frequancy window and by R11 value we check what modulation frequancy the user chose 
+             jnz  manage2
+menu1_1      cmp  #1,R11
+             jnz    menu1_2
+             mov  #512,R14              ; f1=2KHz
+menu1_2      cmp  #2,R11
+             jnz    menu1_3
+             mov  #256,R14              ; f1=4KHz
+menu1_3      cmp  #3,R11
+             jnz    exit_manage
+             mov  #170,R14              ; f1=6KHz             
+             
+manage2      cmp  #2,R10               ;if R11/=0 and R10=2 we on sync frequancy window and by R11 value we check what sync frequancy the user chose 
+             jnz  manage3
+menu2_1      cmp  #1,R11
+             jnz    menu2_2
+             mov  #1024,R13              ; f0=1KHz
+menu2_2      cmp  #2,R11
+             jnz    exit_manage
+             mov  #512,R13              ; f0=2KHz         
+             
+manage3      cmp  #3,R10               ;if R11/=0 and R10=3 we on main menu and want to active action mode
+             jnz  manage4
+             call #curr_disp           ;calling the LCD display function becuase we need to use LCD before activating the action mode
+             call #action              ; action function starting timers and the signal
+             jmp exit_manage
+
+manage4      cmp  #4,R10               ;if R11/=0 and R10=4 we on main menu window and want to active quit mode
+             jnz  exit_manage
+             cmp  #1,quit_flag
+             jz exit_quit
+             call #quit
+             jmp  exit_manage
+
+enter_sub    mov #1,R11               ;we get here if R11=0, and then we enter action mode or quit mode
+             cmp  #3,R10              ; from main menu chose action option
+             jz manage3
+             cmp  #4,R10              ; from main menu chose quit option
+             jz manage4
+             
+exit_manage  ret
+
+
+action       bis.b   #0x04,P2DIR       ;enable PWM output from P2.2
+             bis.b   #0x80,&P2IE       ;enable KP interrupt
+             call    #SetupTA          ;active Timer A
+             ret
+
+instruction  bic.b #0x80,&P2IE                   ; disable KP interrupt
+             mov.b #0xe0,&P1IE                   ; only PB1.0-PB1.2 can interrupt
+             bis.w #CPUOFF+GIE,SR                ; Enter LPM0, enable interrupts
+             mov.b #0xf0,&P1IE                   ; PB1.0-PB1.3 can interrupt
+             bis.b #0x80,&P2IE                   ; enable KP interrupt
+             
+             ret
+             
+quit         bic.b   #0x80,&P2IE                ;disable KP interrupts                
+             bic.b   #0x04,&P2DIR                 ;stop PWM from P2.2
+             mov     #MC_0,&TBCTL
+             mov     #MC_0,&TACTL
+             clr.b  &P9OUT
+             mov  #1,quit_flag                  ;quit_flag is now 1
+             call #curr_disp                    ;show on LCD the desired writing
+             mov.b   #0x10,&P1IE                ;enable only PB1.0 interrupts
+             ret
+             
+exit_quit    clr  R10                           ;clear R10 and R11 to go back to page 1 of main menu after getting out of quit mode
+             clr  R11
+             mov #0,quit_flag                   ;after everything' and quit mode specificly quit_flag=0
+             ret          
+             
+;----------------------------------------------------------------------------------------------
+;             Port 1 - use controller
+;----------------------------------------------------------------------------------------------
+PORT1_ISR    Debounce #400
+             bit.b  #0x10,&P1IFG              ;check if P1.4 flag is on
+             jnz     option0
+             bit.b  #0x20,&P1IFG              ;check if P1.5 flag is on
+             jnz     option1
+             bit.b  #0x40,&P1IFG              ;check if P1.6 flag is on
+             jnz     option2
+             bit.b  #0x80,&P1IFG              ;check if P1.7 flag is on
+             jnz     option3
+return       bic.b   #0xf0,&P1IE                     ;disable the PB interrupts
+             bis.w   #GIE,SR                      ;enable Global Enable Interrupt
+             bic.b   #0xf0,&P1IFG                ;clear PB flags
+             bis.b   #0xf0,&P1IE                 ;enable the PB interrupts
+             reti
+returni      bic.b   #0xf0,&P1IE                     ;disable the PB interrupts
+             bis.w   #GIE,SR                      ;enable Global Enable Interrupt
+             bic.b   #0xf0,&P1IFG                ;clear PB flags
+             bis.b   #0x10,&P1IE                 ;enable the PB interrupts
+             reti
+
+option0      Debounce #400
+             call #manage                       ;manage function decide what to do when user choose an option
+             tst  quit_flag;
+             jnz  returni;             
+             call #curr_disp                    ;show on LCD the desired writing
+             jmp  return
+             
+option1      Debounce #400
+             bic.b   #0xff,&P1IE                     ;disable the lowest priority interrupts
+             bis.w   #GIE,SR                      ;enable Global Enable Interrupt
+             bic.b   #0xf0,&P1IFG
+             clr     R11
+             call    #curr_disp                    ;show on LCD the desired writing
+             jmp    return
+             
+option2      Debounce #100
+             tst.b  R11               ;if R11=0 we on the main menu and need to change only R10
+             jnz    confr11
+             add.b  #1,R10            ;adding 1 to R10 means we go down 1 option on main menu
+             jmp    updatedisp
+confr11      add    #1,R11            ;adding 1 to R11 means we go down 1 option on the sub-menu
+updatedisp   call #curr_disp          ;display updated LCD
+             jmp    return
+             
+             
+option3      Debounce #100
+             tst.b  R11               ;if R11=0 we on the main menu and need to change only R10
+             jnz    conf1r11
+             tst    R10               ;if R11=0 and R10=0 we need to go to the last option on the main menu and set R10=4
+             jnz sub1
+             mov    #5,R10
+sub1         sub.b  #1,R10            ;decreasing 1 from R10 means we go up 1 option on the main menu
+             jmp    updatedisp1
+conf1r11      sub    #1,R11              ;decreasing 1 from R11 means we go up 1 option on the sub-menu
+              tst   R11           ;if R11=0 and we want to decrease by 1 
+              jnz   updatedisp1
+              mov   #0xff,R11       ;to create cycle we define like this R11 and curr_disp function identefy it and fix R11 according to the sub-menu
+updatedisp1   call #curr_disp
+             jmp    return             
+             
+
+
+
+
+
+        ENDMOD
+//===========================
+
+                END
+                

@@ -1,0 +1,64 @@
+
+#include  <msp430xG46x.h>
+
+//==============================================================
+                MODULE  signals
+                PUBLIC  SetupTA,SetupC1,Frequ
+                RSEG    CODE    
+              
+              
+;----------------------------------------------------------------------------------------------
+;             Configure Timer_A
+;----------------------------------------------------------------------------------------------
+SetupTA     mov     #0x0149,&TACCR0               ;define counting until 10msec
+            mov.w   #TASSEL_1+MC_1+TAIE,&TACTL    ; ACLK,up mode, interrupt
+            ret
+;----------------------------------------------------------------------------------------------
+;             Configure Timer_B
+;----------------------------------------------------------------------------------------------
+SetupC1     mov.w   R8,&TBCCR0              ;R8 is the currnet frequancy for timer B
+            mov.w   #OUTMOD_7,&TBCCTL1      ; create PWM
+            rra     R8                      ;divide R8 by 2
+            mov     R8,&TBCCR1              ;PWM with duty cycle of 50%
+            mov.w   #TBSSEL_2+MC_1,&TBCTL   ; SMCLK, upmode
+            ret
+            
+;----------------------------------------------------------------------------------------------
+;             Determine frequency
+;----------------------------------------------------------------------------------------------
+Frequ       mov R5,R6                         ;R5 is the part of 10msec we show
+            sub #5,R6                         ;we check if R5 is 1 or 2, if so we dont do nothing, becuase the first 20msec of cycle are the modulation sognal
+            jl signal
+            bis.b   #0x04,&P2DIR              ;start transmitting
+            mov R13,R8                        ;change R8 to f1 freq
+            dec R5                            ;decrease the current part of 10msec
+            ret
+signal      mov R7,R6                         ;R7 is the input from keypad. we put the 4th bit in R6  
+            and #8,R6
+            jnz signal0
+            mov #0,R8                         ;change R8 to R6
+            bic.b   #0x04,&P2DIR              ;stop transmiting
+signal0        tst R6
+            jz rotate
+            bis.b   #0x04,&P2DIR              ;start transmitting
+            mov R14,R8                        ;change R8 to f1 freq
+rotate      mov R7,R9                         ;R9 holds the 4th bit of R7 and move him to be the 1st bit of R7 
+            rla R7
+            and #8,R9
+            tst R9
+            jz decr
+            add #1,R7
+decr        dec R5                            ;decrease the current part of 10msec              
+            tst R5                            ;check if we finish 1 cycle
+            jnz finish
+            mov #6,R5                         ;if we finish cycle, R5=6 counter restart
+            
+finish      ret
+
+            
+             
+                ENDMOD
+//=============================================================
+
+
+                END

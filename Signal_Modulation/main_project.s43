@@ -1,0 +1,122 @@
+//Modulation of digital signal, by Ohad Shapira & Or Shamir
+//
+//"main_priject.s43" is the main page for our project.
+//On this page we defined ports, timer interrupts and parameters. In addition to 
+//that, we saved previous values of registers that we use. 
+//Before getting to sleep mode we call the 'curr_disp' function, who create the display on the LCD.
+//R10- Holds the choise of the user for the main menu. for example, R10=0 lead to instruction, R10=3 lead to sync frequancy
+//R11- Holds the choise of the user for the second menu. for example, R10=1 & R11=0 define f1=2KHz.
+//On this page we also created Timer A and Timer B interrupts. 
+//Timer A intterupted every 10msec and according to the user's choise Timer B created PWM.
+
+
+#include  <msp430xG46x.h>
+
+             
+         NAME       Main
+         PUBLIC     Main
+         EXTERN     curr_disp,Lcd_setup,PORT1_ISR,PORT2_ISR,SetupTA,SetupC1,Frequ
+;-------------------------------------------------------------------------------
+            RSEG    CSTACK                  ; Define stack segment
+;-------------------------------------------------------------------------------
+            RSEG    CODE                    ; Assemble to Flash memory
+;-----------------------------------------------------------------------------
+Main        mov.w   #SFE(CSTACK),SP          ; Initialize stackpointer
+StopWDT     mov.w   #WDTPW+WDTHOLD,&WDTCTL
+
+SetupFLL    bis.b   #XCAP14PF,&FLL_CTL0     ; Configure load caps ;;;;;;;;;;;;;;;;
+            
+OFIFGcheck  bic.b   #OFIFG,&IFG1            ; Clear OFIFG
+            mov.w   #047FFh,R15             ; Wait for OFIFG to set again if
+OFIFGwait   dec.w   R15                     ; not stable yet
+            jnz     OFIFGwait
+            bit.b   #OFIFG,&IFG1            ; Has it set again?
+            jnz     OFIFGcheck              ; If so, wait some more
+
+
+            ; -------parameters--------
+            mov     #0,R7      ;R2 org signal, R7 changed signal
+            mov     #6,R5       ;signal with init
+            mov     #1024,R13   ; f0
+            mov     #512,R14    ; f1
+            ; ----------
+            
+            bic.b #0xff,&P1SEL                  ; I/O - PB
+            bic.b #0xff,&P1DIR                  ; input for pushbuttons 
+            mov.b #0x30,&P1IES                  ; edges for interuprts
+            mov.b #0xf0,&P1IE                   ; enable interrupts
+          
+            mov.b #0x04,&P2SEL                  ; I/O - P2.7 & P2.2 creating PWM
+            bic.b #0x80,&P2DIR                  ; P2.7 input & P2.2 output 
+            bis.b #0x84,&P2IES                  ; edges for interuprts 
+            bic.b #0x80,&P2IE                   ; at first not enabeling intrrupts for KP
+
+            bic.b #0xe0,&P3SEL                  ; I/O - LCD control bits
+            mov.b #0xe0,&P3DIR                  ; P3.5 - 'E', P3.6 - 'RW',P3.7 - 'RS'
+           
+            mov.b #0x00,&P4SEL                  ; I/O - KP
+            mov.b #0x0f,&P4DIR                  ; KP: P4.0-P4.3 output, P4.4-P4.7 input
+            bic.b #0xff,&P4OUT                  ; enabling the interrupt from a key pad
+            
+            mov.b #0x00,&P5SEL                  ; I/O - LCD
+            mov.b #0xff,&P5DIR                  ; LCD: output
+            call #Lcd_setup                       ; set LCD properties
+            
+            bic.b #0xff,&P9SEL                  ; I/O - LEDs
+            bis.b #0xff,&P9DIR                  ; output for LEDs
+            bic.b #0xff,&P9OUT                  ; output = 0
+            clr.b &P9OUT
+            
+            clr.b  R10
+            clr.b  R11
+            
+            call  #curr_disp                    ;this function check the current status and according to that displays LCD
+            
+            bis.w #CPUOFF+GIE,SR                ; Enter LPM0, enable interrupts
+             
+            NOP
+
+;------------------------------------------------------------------------------
+TBX_ISR;    Common ISR for TBCCR1-4 and overflow
+;------------------------------------------------------------------------------
+            add.w   &TBIV,PC                ; Add Timer_B offset vector
+            reti                            ; Vector 0 - no interrupt
+            reti                            ; Vector 1 - TBCCR1
+            reti                            ; Vector 2 - TBCCR2
+            reti                            ; Vector 3 - CCR3
+            reti                            ; Vector 4 - CCR4
+            reti                            ; Vector 5 - CCR5
+            reti                            ; Vector 6 - CCR6
+TB_over     bic      #CPUOFF+SCG1+SCG0,0(SP)     ; cancel sleep
+            reti                            ; Return from overflow ISR		
+                              
+;------------------------------------------------------------------------------
+TAX_ISR;    Common ISR for TACCR1-4 and overflow
+;-----------------------------------------------------------------------------
+            add.w   &TAIV,PC                ; Add Timer_B offset vector
+            reti                            ; Vector 0 - no interrupt
+            reti                            ; Vector 1 - TBCCR1
+            reti                            ; Vector 2 - TBCCR2
+            reti                            ; Vector 3 - CCR3
+            reti                            ; Vector 4 - CCR4
+TA_over     call  #Frequ        ; determine cycle frequency
+            call  #SetupC1      ; setup timer b  parameters
+            reti                            ; Return from overflow ISR			
+                     
+      
+      
+;------------------------------------------------------------------------------
+            COMMON  INTVEC                  ; Interrupt Vectors-Begins a common segment with name of INTVEC 
+;------------------------------------------------------------------------------
+            ORG     PORT1_VECTOR            ;PORT1 Interrupt Vector Address 0xFFE0
+            DW      PORT1_ISR         
+            ORG     PORT2_VECTOR            ;PORT1 Interrupt Vector Address 0xFFE2
+            DW      PORT2_ISR                        
+            ORG     TIMERB1_VECTOR          ; Timer_BX Vector
+            DW      TBX_ISR                 ;
+            ORG     TIMERA1_VECTOR          ; Timer_AX Vector
+            DW      TAX_ISR                 ;
+            ORG     RESET_VECTOR            ;RESET Vector Address 0xFFFE
+            DW      Main                  
+            END
+

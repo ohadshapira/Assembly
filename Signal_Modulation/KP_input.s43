@@ -1,0 +1,149 @@
+//On this page we manage the Keypad input
+//R7 holds the value of the signal
+//R15 holds the ASCII number of signal for display
+
+#include  <msp430xG46x.h>
+
+            NAME KP_input
+            PUBLIC PORT2_ISR
+            EXTERN curr_disp,manage,show_signal
+              
+              
+
+Debounce     MACRO  cycles
+             LOCAL  L_D
+             mov.w  cycles,R4     
+L_D          dec.w  R4                     
+             jnz    L_D
+             ENDM       
+
+               
+//==============================================================================             
+            RSEG CODE
+//==============================================================================
+PORT2_ISR   Debounce #400                    ; debounce for the key-pad
+            ;bic.b   #0x80,&P2IE                     ;disable the lowest priority interrupts
+            ;bis.w   #GIE,SR                      ;enable Global Enable Interrupt
+            ;bic.b   #0x80,&P2IFG
+            ;bis.b   #0x80,&P2IE    
+            
+            ;clr   R10
+            
+            mov.b #0x0e, &P4OUT            ; check the lowest (0) row 
+            bit.b #0x80, &P4IN             ; *
+            jz kpf
+            bit.b #0x40, &P4IN             ; 0
+            jz kp0
+            bit.b #0x20, &P4IN             ; #
+            jz kpe
+            bit.b #0x10, &P4IN             ; D
+            jz kpd
+            
+            mov.b #0x0d, &P4OUT            ; check the (1) row 
+            bit.b #0x80, &P4IN             ; 7
+            jz kp7
+            bit.b #0x40, &P4IN             ; 8
+            jz kp8
+            bit.b #0x20, &P4IN             ; 9
+            jz kp9
+            bit.b #0x10, &P4IN             ; C
+            jz kpc
+            
+            mov.b #0x0b, &P4OUT            ; check the (2) row 
+            bit.b #0x80, &P4IN             ; 4
+            jz kp4
+            bit.b #0x40, &P4IN             ; 5
+            jz kp5
+            bit.b #0x20, &P4IN             ; 6
+            jz kp6
+            bit.b #0x10, &P4IN             ; B
+            jz kpb
+            
+            mov.b #0x07, &P4OUT            ; check the highest (3) row 
+            bit.b #0x80, &P4IN             ; 1
+            jz kp1
+            bit.b #0x40, &P4IN             ; 2
+            jz kp2
+            bit.b #0x20, &P4IN             ; 3
+            jz kp3
+            bit.b #0x10, &P4IN             ; A 
+            jz kpa
+
+//            
+kp0         mov.b #0, R7                ; saving the character to 0
+            mov.b #'0', R15
+            jmp KP_in
+kp1         mov.b #1, R7                ; saving the character to 1
+            mov.b #'1', R15
+            jmp KP_in
+kp2         mov.b #2, R7                ; saving the character to 2
+            mov.b #'2', R15
+            jmp KP_in
+kp3         mov.b #3, R7                ; saving the character to 3
+            mov.b #'3', R15
+            jmp KP_in
+kp4         mov.b #4, R7                ; saving the character to 4
+            mov.b #'4', R15
+            jmp KP_in
+kp5         mov.b #5, R7                ; saving the character to 5
+            mov.b #'5', R15
+            jmp KP_in
+kp6         mov.b #6, R7                ; saving the character to 6
+            mov.b #'6', R15
+            jmp KP_in
+kp7         mov.b #7, R7                ; saving the character to 7
+            mov.b #'7', R15
+            jmp KP_in
+kp8         mov.b #8, R7                ; saving the character to 8
+            mov.b #'8', R15
+            jmp KP_in
+kp9         mov.b #9, R7                ; saving the character to 9
+            mov.b #'9', R15
+            jmp KP_in
+kpa         mov.b #10, R7                ; saving the character to +
+            mov.b #'A', R15
+            jmp KP_in
+kpb         mov.b #11, R7                ; saving the character to -
+            mov.b #'B', R15
+            jmp KP_in
+kpc         mov.b #12, R7                ; saving the character to *
+            mov.b #'C', R15
+            jmp KP_in
+kpd         mov.b #13, R7                ; saving the character to /
+            mov.b #'D', R15
+            jmp KP_in
+kpe         mov.b #14, R7                ; saving the character to !
+            mov.b #'E', R15
+            jmp KP_in
+kpf         mov.b #15, R7                ; saving the character to =
+            mov.b #'F', R15
+            jmp KP_in
+
+
+KP_in       clr.b &P4OUT
+            clr.b &P2IFG
+            mov.b R7,&P9OUT
+            call  #show_signal          ;display on LCD the input from KP
+            call  #curr_disp            ;return to the precious window 
+            mov     #6,R5
+            
+            reti
+           
+           
+           
+           
+           
+           
+           
+           
+           
+           
+           
+           
+           
+           
+      
+               ENDMOD
+//===========================7
+
+                END           
